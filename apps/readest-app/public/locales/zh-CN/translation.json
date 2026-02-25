@@ -1048,5 +1048,6 @@
   "TTS": "语音朗读",
   "TTS Engine": "TTS 引擎",
   "Microsoft Edge TTS": "微软 Edge TTS",
-  "Custom TTS URL": "自定义 TTS URL"
+  "Custom TTS URL": "自定义 TTS URL",
+  "Parallel Prefetch": "并行预加载数"
 }

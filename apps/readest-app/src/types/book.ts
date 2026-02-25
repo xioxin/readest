@@ -227,6 +227,7 @@ export interface TTSConfig {
   ttsHighlightOptions: TTSHighlightOptions;
   ttsEngineType: 'edge' | 'custom';
   customTTSUrl: string;
+  customTTSParallel: number;
 }
 
 export interface TranslatorConfig {

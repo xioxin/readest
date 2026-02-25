@@ -502,12 +502,15 @@ export class TTSController extends EventTarget {
     this.ttsTargetLang = lang;
   }
 
-  async useCustomTTSUrl(url: string) {
+  async useCustomTTSUrl(url: string, parallel?: number) {
     if (!url) return;
     if (!this.ttsCustomClient) {
       this.ttsCustomClient = new CustomTTSClient(this, url);
     } else {
       this.ttsCustomClient.setUrl(url);
+    }
+    if (parallel !== undefined) {
+      this.ttsCustomClient.setParallel(parallel);
     }
     await this.ttsCustomClient.init();
     this.ttsClient = this.ttsCustomClient;

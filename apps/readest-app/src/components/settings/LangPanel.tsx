@@ -34,6 +34,9 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [customTTSUrl, setCustomTTSUrl] = useState(
     viewSettings.customTTSUrl ?? 'http://127.0.0.1:9880/?text={{speakText}}',
   );
+  const [customTTSParallel, setCustomTTSParallel] = useState(
+    viewSettings.customTTSParallel ?? 3,
+  );
   const [replaceQuotationMarks, setReplaceQuotationMarks] = useState(
     viewSettings.replaceQuotationMarks,
   );
@@ -53,6 +56,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       ttsReadAloudText: setTtsReadAloudText,
       ttsEngineType: setTtsEngineType as Dispatch<SetStateAction<string>>,
       customTTSUrl: setCustomTTSUrl,
+      customTTSParallel: setCustomTTSParallel as Dispatch<SetStateAction<number>>,
       replaceQuotationMarks: setReplaceQuotationMarks,
     });
   };
@@ -155,6 +159,14 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const handleCustomTTSUrlBlur = () => {
     saveViewSettings(envConfig, bookKey, 'customTTSUrl', customTTSUrl, false, false);
     viewSettings.customTTSUrl = customTTSUrl;
+    setViewSettings(bookKey, { ...viewSettings });
+  };
+
+  const handleCustomTTSParallelChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Math.max(1, Math.min(10, parseInt(event.target.value, 10) || 1));
+    setCustomTTSParallel(value);
+    saveViewSettings(envConfig, bookKey, 'customTTSParallel', value, false, false);
+    viewSettings.customTTSParallel = value;
     setViewSettings(bookKey, { ...viewSettings });
   };
 
@@ -378,6 +390,20 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
                     placeholder='http://127.0.0.1:9880/?text={{speakText}}'
                   />
                 </div>
+              </div>
+            )}
+
+            {ttsEngineType === 'custom' && (
+              <div className='config-item' data-setting-id='settings.language.customTTSParallel'>
+                <span className=''>{_('Parallel Prefetch')}</span>
+                <input
+                  type='number'
+                  className='input input-bordered input-sm w-20 text-center'
+                  value={customTTSParallel}
+                  min={1}
+                  max={10}
+                  onChange={handleCustomTTSParallelChange}
+                />
               </div>
             )}
           </div>

@@ -428,7 +428,7 @@ export const useTTSControl = ({ bookKey, onRequestHidePanel }: UseTTSControlProp
 
       await ttsController.init();
       if (viewSettings.ttsEngineType === 'custom' && viewSettings.customTTSUrl) {
-        await ttsController.useCustomTTSUrl(viewSettings.customTTSUrl);
+        await ttsController.useCustomTTSUrl(viewSettings.customTTSUrl, viewSettings.customTTSParallel);
       }
       await ttsController.initViewTTS(
         getTTSHighlightOptions(viewSettings.ttsHighlightOptions, viewSettings.isEink),
