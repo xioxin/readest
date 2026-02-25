@@ -17,8 +17,12 @@ export class CustomTTSClient implements TTSClient {
   #audioElement: HTMLAudioElement | null = null;
   #isPlaying = false;
   #pausedAt = 0;
-  #prefetchMap: Map<number, Promise<string | null>> = new Map();
-  #blobUrls: Set<string> = new Set();
+  // Keyed by sentence text; shared across speak() calls so preloads survive sentence transitions.
+  #textCache: Map<string, Promise<string | null>> = new Map();
+  // Tracks resolved blob URLs that are pre-fetched but not yet played, for cleanup.
+  #pendingBlobUrls: Set<string> = new Set();
+  // Abort controller for in-flight HTTP fetches; replaced on clearPrefetch().
+  #fetchController = new AbortController();
 
   constructor(controller?: TTSController, url = '') {
     this.controller = controller;
@@ -33,6 +37,10 @@ export class CustomTTSClient implements TTSClient {
     this.#parallel = Math.max(1, n);
   }
 
+  getParallel(): number {
+    return this.#parallel;
+  }
+
   async init() {
     this.initialized = !!this.#url;
     return this.initialized;
@@ -40,7 +48,7 @@ export class CustomTTSClient implements TTSClient {
 
   async shutdown() {
     this.initialized = false;
-    this.#clearPrefetch();
+    this.clearPrefetch();
     if (this.#audioElement) {
       this.#audioElement.pause();
       this.#audioElement.src = '';
@@ -55,58 +63,65 @@ export class CustomTTSClient implements TTSClient {
   async #fetchAudioBlob(text: string): Promise<string | null> {
     for (let attempt = 0; attempt < MAX_FETCH_RETRIES; attempt++) {
       try {
-        const url = this.#buildAudioUrl(text);
-        const response = await fetch(url);
+        if (this.#fetchController.signal.aborted) return null;
+        const response = await fetch(this.#buildAudioUrl(text), {
+          signal: this.#fetchController.signal,
+        });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
-        this.#blobUrls.add(blobUrl);
+        this.#pendingBlobUrls.add(blobUrl);
         return blobUrl;
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') return null;
         console.warn(`Custom TTS fetch attempt ${attempt + 1} failed:`, err);
       }
     }
     return null;
   }
 
-  #ensurePrefetch(index: number, text: string): Promise<string | null> {
-    if (!this.#prefetchMap.has(index)) {
-      this.#prefetchMap.set(index, this.#fetchAudioBlob(text));
+  // Ensures a fetch for this text is in-flight or cached; returns the promise.
+  #ensureFetch(text: string): Promise<string | null> {
+    if (!this.#textCache.has(text)) {
+      this.#textCache.set(text, this.#fetchAudioBlob(text));
     }
-    return this.#prefetchMap.get(index)!;
+    return this.#textCache.get(text)!;
   }
 
-  #clearPrefetch() {
-    for (const blobUrl of this.#blobUrls) {
-      URL.revokeObjectURL(blobUrl);
+  // Abort in-flight fetches, revoke pending blob URLs, clear the cache.
+  // Call this when navigating backward or shutting down (not between sentences).
+  clearPrefetch() {
+    this.#fetchController.abort();
+    this.#fetchController = new AbortController();
+    this.#textCache.clear();
+    for (const url of this.#pendingBlobUrls) {
+      URL.revokeObjectURL(url);
     }
-    this.#blobUrls.clear();
-    this.#prefetchMap.clear();
+    this.#pendingBlobUrls.clear();
   }
 
   async *speak(ssml: string, signal: AbortSignal, preload = false): AsyncIterable<TTSMessageEvent> {
     const { marks } = parseSSMLMarks(ssml);
 
     if (preload) {
+      // Pre-fetch audio for each mark in this SSML and store in the shared text cache.
+      // TTSController.preloadNextSSML() calls this for upcoming sentences, so by the time
+      // speak(preload=false) is called for a sentence the blob URL is already ready.
+      for (const mark of marks) {
+        this.#ensureFetch(mark.text);
+      }
       yield { code: 'end', message: 'Preload finished' } as TTSMessageEvent;
       return;
     }
 
     await this.stopInternal();
-    this.#clearPrefetch();
     if (!this.#audioElement) {
       this.#audioElement = new Audio();
     }
     const audio = this.#audioElement;
     audio.preload = 'auto';
 
-    // Pre-fetch the first `parallel` marks
-    for (let i = 0; i < Math.min(this.#parallel, marks.length); i++) {
-      this.#ensurePrefetch(i, marks[i]!.text);
-    }
-
-    for (let markIndex = 0; markIndex < marks.length; markIndex++) {
-      const mark = marks[markIndex]!;
+    for (const mark of marks) {
       this.controller?.dispatchSpeakMark(mark);
       let abortHandler: null | (() => void) = null;
       try {
@@ -121,9 +136,9 @@ export class CustomTTSClient implements TTSClient {
           mark: mark.name,
         } as TTSMessageEvent;
 
-        // Wait for the prefetch for this mark (or abort)
+        // Await the pre-fetched blob URL (or start a fresh fetch if not yet cached).
         let blobUrl: string | null = await Promise.race([
-          this.#ensurePrefetch(markIndex, mark.text),
+          this.#ensureFetch(mark.text),
           new Promise<null>((resolve) => {
             if (signal.aborted) {
               resolve(null);
@@ -138,21 +153,15 @@ export class CustomTTSClient implements TTSClient {
           break;
         }
 
-        // If prefetch failed, retry once
-        if (blobUrl === null) {
-          this.#prefetchMap.delete(markIndex);
-          blobUrl = await this.#ensurePrefetch(markIndex, mark.text);
+        // If the fetch failed (not aborted by stop signal), retry once.
+        if (blobUrl === null && !signal.aborted) {
+          this.#textCache.delete(mark.text);
+          blobUrl = await this.#ensureFetch(mark.text);
         }
 
         if (blobUrl === null) {
           yield { code: 'error', message: 'Audio fetch failed' } as TTSMessageEvent;
           break;
-        }
-
-        // Kick off the next fetch in the sliding window
-        const nextPrefetchIndex = markIndex + this.#parallel;
-        if (nextPrefetchIndex < marks.length) {
-          this.#ensurePrefetch(nextPrefetchIndex, marks[nextPrefetchIndex]!.text);
         }
 
         const currentBlobUrl = blobUrl;
@@ -162,7 +171,8 @@ export class CustomTTSClient implements TTSClient {
             audio.onerror = null;
             audio.src = '';
             URL.revokeObjectURL(currentBlobUrl);
-            this.#blobUrls.delete(currentBlobUrl);
+            this.#pendingBlobUrls.delete(currentBlobUrl);
+            this.#textCache.delete(mark.text);
           };
           let resolved = false;
           const handleEnded = () => {
@@ -211,7 +221,6 @@ export class CustomTTSClient implements TTSClient {
       }
     }
     await this.stopInternal();
-    this.#clearPrefetch();
   }
 
   async pause() {
@@ -232,6 +241,9 @@ export class CustomTTSClient implements TTSClient {
 
   async stop() {
     await this.stopInternal();
+    // Note: do NOT call clearPrefetch() here — the prefetch cache must survive the stop()
+    // that TTSController calls between sentences (forward navigation). clearPrefetch() is
+    // called explicitly by TTSController on backward navigation and by shutdown().
   }
 
   private async stopInternal() {
