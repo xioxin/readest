@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useEffect, useState } from 'react';
+import React, { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { useEnv } from '@/context/EnvContext';
 import { useAuth } from '@/context/AuthContext';
 import { useReaderStore } from '@/store/readerStore';
@@ -30,6 +30,10 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [translateTargetLang, setTranslateTargetLang] = useState(viewSettings.translateTargetLang);
   const [showTranslateSource, setShowTranslateSource] = useState(viewSettings.showTranslateSource);
   const [ttsReadAloudText, setTtsReadAloudText] = useState(viewSettings.ttsReadAloudText);
+  const [ttsEngineType, setTtsEngineType] = useState(viewSettings.ttsEngineType ?? 'edge');
+  const [customTTSUrl, setCustomTTSUrl] = useState(
+    viewSettings.customTTSUrl ?? 'http://127.0.0.1:9880/?text={{speakText}}',
+  );
   const [replaceQuotationMarks, setReplaceQuotationMarks] = useState(
     viewSettings.replaceQuotationMarks,
   );
@@ -47,6 +51,8 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       translateTargetLang: setTranslateTargetLang,
       showTranslateSource: setShowTranslateSource,
       ttsReadAloudText: setTtsReadAloudText,
+      ttsEngineType: setTtsEngineType as Dispatch<SetStateAction<string>>,
+      customTTSUrl: setCustomTTSUrl,
       replaceQuotationMarks: setReplaceQuotationMarks,
     });
   };
@@ -131,6 +137,32 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     const option = event.target.value;
     setTtsReadAloudText(option);
     saveViewSettings(envConfig, bookKey, 'ttsReadAloudText', option, false, false);
+  };
+
+  const handleSelectTTSEngine = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const option = event.target.value as 'edge' | 'custom';
+    setTtsEngineType(option);
+    saveViewSettings(envConfig, bookKey, 'ttsEngineType', option, false, false);
+    viewSettings.ttsEngineType = option;
+    setViewSettings(bookKey, { ...viewSettings });
+  };
+
+  const handleCustomTTSUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const url = event.target.value;
+    setCustomTTSUrl(url);
+  };
+
+  const handleCustomTTSUrlBlur = () => {
+    saveViewSettings(envConfig, bookKey, 'customTTSUrl', customTTSUrl, false, false);
+    viewSettings.customTTSUrl = customTTSUrl;
+    setViewSettings(bookKey, { ...viewSettings });
+  };
+
+  const getTTSEngineOptions = () => {
+    return [
+      { value: 'edge', label: _('Microsoft Edge TTS') },
+      { value: 'custom', label: _('Custom') },
+    ];
   };
 
   const getTTSTextOptions = () => {
@@ -313,6 +345,41 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
                 options={getLangOptions(TRANSLATOR_LANGS)}
               />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className='w-full' data-setting-id='settings.language.ttsEngine'>
+        <h2 className='mb-2 font-medium'>{_('TTS')}</h2>
+        <div className='card border-base-200 bg-base-100 border shadow'>
+          <div className='divide-base-200'>
+            <div className='config-item' data-setting-id='settings.language.ttsEngineType'>
+              <span className=''>{_('TTS Engine')}</span>
+              <Select
+                value={ttsEngineType}
+                onChange={handleSelectTTSEngine}
+                options={getTTSEngineOptions()}
+              />
+            </div>
+
+            {ttsEngineType === 'custom' && (
+              <div
+                className='config-item !h-auto py-3'
+                data-setting-id='settings.language.customTTSUrl'
+              >
+                <div className='flex w-full flex-col gap-1'>
+                  <span className=''>{_('Custom TTS URL')}</span>
+                  <input
+                    type='text'
+                    className='input input-bordered input-sm w-full font-mono text-xs'
+                    value={customTTSUrl}
+                    onChange={handleCustomTTSUrlChange}
+                    onBlur={handleCustomTTSUrlBlur}
+                    placeholder='http://127.0.0.1:9880/?text={{speakText}}'
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

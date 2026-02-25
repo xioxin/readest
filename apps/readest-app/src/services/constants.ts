@@ -290,6 +290,8 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
   ttsLocation: '',
   showTTSBar: false,
   ttsHighlightOptions: { style: 'highlight', color: '#808080' },
+  ttsEngineType: 'edge',
+  customTTSUrl: 'http://127.0.0.1:9880/?text={{speakText}}',
 };
 
 export const DEFAULT_TRANSLATOR_CONFIG: TranslatorConfig = {

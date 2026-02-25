@@ -7,6 +7,7 @@ import { createRejectFilter } from '@/utils/node';
 import { WebSpeechClient } from './WebSpeechClient';
 import { NativeTTSClient } from './NativeTTSClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
+import { CustomTTSClient } from './CustomTTSClient';
 import { TTSUtils } from './TTSUtils';
 import { TTSClient } from './TTSClient';
 
@@ -41,6 +42,7 @@ export class TTSController extends EventTarget {
   ttsWebClient: TTSClient;
   ttsEdgeClient: TTSClient;
   ttsNativeClient: TTSClient | null = null;
+  ttsCustomClient: CustomTTSClient | null = null;
   ttsWebVoices: TTSVoice[] = [];
   ttsEdgeVoices: TTSVoice[] = [];
   ttsNativeVoices: TTSVoice[] = [];
@@ -500,6 +502,18 @@ export class TTSController extends EventTarget {
     this.ttsTargetLang = lang;
   }
 
+  async useCustomTTSUrl(url: string) {
+    if (!url) return;
+    if (!this.ttsCustomClient) {
+      this.ttsCustomClient = new CustomTTSClient(this, url);
+    } else {
+      this.ttsCustomClient.setUrl(url);
+    }
+    await this.ttsCustomClient.init();
+    this.ttsClient = this.ttsCustomClient;
+    await this.ttsClient.setRate(this.ttsRate);
+  }
+
   dispatchSpeakMark(mark?: TTSMark) {
     this.dispatchEvent(new CustomEvent('tts-speak-mark', { detail: mark || { text: '' } }));
     if (mark && mark.name !== '-1') {
@@ -532,6 +546,9 @@ export class TTSController extends EventTarget {
     }
     if (this.ttsNativeClient?.initialized) {
       await this.ttsNativeClient.shutdown();
+    }
+    if (this.ttsCustomClient?.initialized) {
+      await this.ttsCustomClient.shutdown();
     }
   }
 }
