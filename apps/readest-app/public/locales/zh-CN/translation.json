@@ -1044,5 +1044,10 @@
   "Push Highlights": "推送高亮内容",
   "Highlights synced to Readwise": "高亮内容已同步到 Readwise",
   "Readwise sync failed: no internet connection": "Readwise 同步失败：无网络连接",
-  "Readwise sync failed: {{error}}": "Readwise 同步失败：{{error}}"
+  "Readwise sync failed: {{error}}": "Readwise 同步失败：{{error}}",
+  "TTS": "语音朗读",
+  "TTS Engine": "TTS 引擎",
+  "Microsoft Edge TTS": "微软 Edge TTS",
+  "Custom TTS URL": "自定义 TTS URL",
+  "Parallel Prefetch": "并行预加载数"
 }

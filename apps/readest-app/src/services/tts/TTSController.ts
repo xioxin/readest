@@ -7,6 +7,7 @@ import { createRejectFilter } from '@/utils/node';
 import { WebSpeechClient } from './WebSpeechClient';
 import { NativeTTSClient } from './NativeTTSClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
+import { CustomTTSClient } from './CustomTTSClient';
 import { TTSUtils } from './TTSUtils';
 import { TTSClient } from './TTSClient';
 
@@ -41,6 +42,7 @@ export class TTSController extends EventTarget {
   ttsWebClient: TTSClient;
   ttsEdgeClient: TTSClient;
   ttsNativeClient: TTSClient | null = null;
+  ttsCustomClient: CustomTTSClient | null = null;
   ttsWebVoices: TTSVoice[] = [];
   ttsEdgeVoices: TTSVoice[] = [];
   ttsNativeVoices: TTSVoice[] = [];
@@ -227,6 +229,16 @@ export class TTSController extends EventTarget {
     for await (const _ of iter);
   }
 
+  // Returns the number of sentences to look ahead for preloading.
+  // For custom TTS this matches the configured parallel count so that
+  // preloadNextSSML() feeds the right number of in-flight HTTP requests.
+  #getPreloadCount(): number {
+    if (this.ttsClient === this.ttsCustomClient && this.ttsCustomClient) {
+      return this.ttsCustomClient.getParallel();
+    }
+    return 4;
+  }
+
   async preloadNextSSML(count: number = 4) {
     const tts = this.view.tts;
     if (!tts) return;
@@ -351,7 +363,7 @@ export class TTSController extends EventTarget {
       })
       .catch((e) => this.error(e));
     if (!oneTime) {
-      this.preloadNextSSML();
+      this.preloadNextSSML(this.#getPreloadCount());
       this.dispatchSpeakMark();
     }
   }
@@ -371,7 +383,7 @@ export class TTSController extends EventTarget {
       this.resume();
     }
     this.#speak(ssml);
-    this.preloadNextSSML();
+    this.preloadNextSSML(this.#getPreloadCount());
   }
 
   async pause() {
@@ -410,6 +422,8 @@ export class TTSController extends EventTarget {
     await this.initViewTTS();
     const isPlaying = this.state === 'playing';
     await this.stop();
+    // Invalidate the look-ahead cache since we are moving to a different position.
+    this.ttsCustomClient?.clearPrefetch();
     if (!isPlaying) this.state = 'backward-paused';
 
     const ssml = byMark ? this.view.tts?.prevMark(!isPlaying) : this.view.tts?.prev(!isPlaying);
@@ -433,7 +447,7 @@ export class TTSController extends EventTarget {
     } else {
       await this.#handleNavigationWithSSML(ssml, isPlaying);
     }
-    if (isPlaying && !byMark) this.preloadNextSSML();
+    if (isPlaying && !byMark) this.preloadNextSSML(this.#getPreloadCount());
   }
 
   async setLang(lang: string) {
@@ -500,6 +514,21 @@ export class TTSController extends EventTarget {
     this.ttsTargetLang = lang;
   }
 
+  async useCustomTTSUrl(url: string, parallel?: number) {
+    if (!url) return;
+    if (!this.ttsCustomClient) {
+      this.ttsCustomClient = new CustomTTSClient(this, url);
+    } else {
+      this.ttsCustomClient.setUrl(url);
+    }
+    if (parallel !== undefined) {
+      this.ttsCustomClient.setParallel(parallel);
+    }
+    await this.ttsCustomClient.init();
+    this.ttsClient = this.ttsCustomClient;
+    await this.ttsClient.setRate(this.ttsRate);
+  }
+
   dispatchSpeakMark(mark?: TTSMark) {
     this.dispatchEvent(new CustomEvent('tts-speak-mark', { detail: mark || { text: '' } }));
     if (mark && mark.name !== '-1') {
@@ -532,6 +561,9 @@ export class TTSController extends EventTarget {
     }
     if (this.ttsNativeClient?.initialized) {
       await this.ttsNativeClient.shutdown();
+    }
+    if (this.ttsCustomClient?.initialized) {
+      await this.ttsCustomClient.shutdown();
     }
   }
 }
