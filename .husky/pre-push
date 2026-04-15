@@ -1,2 +1,2 @@
-# temporarily disabled for push
-exit 0
+pnpm -C apps/readest-app lint
+pnpm -C apps/readest-app test
