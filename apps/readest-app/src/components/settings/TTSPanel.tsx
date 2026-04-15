@@ -9,10 +9,11 @@ import { SettingsPanelPanelProp } from './SettingsDialog';
 import { TTSMediaMetadataMode } from '@/services/tts/types';
 import TTSHighlightStyleEditor, { TTSHighlightStyle } from './color/TTSHighlightStyleEditor';
 import Select from '../Select';
+import LocalTTSModelManager from './LocalTTSModelManager';
 
 const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }) => {
   const _ = useTranslation();
-  const { envConfig } = useEnv();
+  const { envConfig, appService } = useEnv();
   const { getViewSettings } = useReaderStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const viewSettings = getViewSettings(bookKey) || settings.globalViewSettings;
@@ -76,6 +77,8 @@ const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }
     setTtsMediaMetadata(event.target.value as TTSMediaMetadataMode);
   };
 
+  const showLocalTTS = appService?.isDesktopApp || appService?.isMobileApp;
+
   return (
     <div className='my-4 w-full space-y-6'>
       <TTSHighlightStyleEditor
@@ -109,6 +112,8 @@ const TTSPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }
           </div>
         </div>
       </div>
+
+      {showLocalTTS && <LocalTTSModelManager />}
     </div>
   );
 };
