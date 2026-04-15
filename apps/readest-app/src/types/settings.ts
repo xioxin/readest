@@ -125,6 +125,11 @@ export interface SystemSettings {
   migrationVersion: number;
 
   aiSettings: AISettings;
+  // Local TTS settings for on-device synthesis.
+  localTTSModelId: string;
+  localTTSVoiceId: string;
+  localTTSReferenceAudioPath: string;
+  localTTSVoiceCloneEnabled: boolean;
   // Global read settings that apply to the reader page
   globalReadSettings: ReadSettings;
   // Global view settings that apply to all books, and can be overridden by book-specific view settings

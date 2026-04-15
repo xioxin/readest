@@ -1,0 +1,31 @@
+[package]
+name = "tauri-plugin-local-tts"
+version = "0.1.0"
+authors = ["You"]
+description = "Local TTS plugin using any-tts (Candle) for Readest"
+edition = "2021"
+rust-version = "1.83"
+exclude = ["/examples", "/dist-js", "/guest-js", "/node_modules"]
+
+[features]
+default = []
+cuda = ["any-tts/cuda"]
+metal = ["any-tts/metal"]
+accelerate = ["any-tts/accelerate"]
+
+[dependencies]
+any-tts = { version = "0.1.1", default-features = false, features = [
+  "kokoro",
+  "omnivoice",
+  "vibevoice",
+  "download",
+] }
+tauri = { version = "2" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+log = "0.4"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }

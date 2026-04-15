@@ -114,6 +114,11 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   hardcover: DEFAULT_HARDCOVER_SETTINGS,
   aiSettings: DEFAULT_AI_SETTINGS,
 
+  localTTSModelId: '',
+  localTTSVoiceId: '',
+  localTTSReferenceAudioPath: '',
+  localTTSVoiceCloneEnabled: false,
+
   lastSyncedAtBooks: 0,
   lastSyncedAtConfigs: 0,
   lastSyncedAtNotes: 0,
